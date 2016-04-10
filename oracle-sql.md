@@ -21,7 +21,7 @@
 3. c /要改的改行命令中的某个单词/改变后的单词
 4. /
 5. 回车执行修改后上条的命令
-# SQL优化的原则：
+# ***SQL优化的原则：***
 1. 尽量使用列名而不是*来查询
 2. where解析的顺序：从右往左
 		
@@ -30,7 +30,7 @@
 		where condition1 and condition2
 		
   	这条语句先判断condition2，再判断condition1
-	
+3. 在`where`和`having`可以替换的情况下，尽量使用`where`来代替`having`；因为`having`是先分组再过滤，`where`是先过滤再分组
 	
 	
 # SQL中的null值：
@@ -45,12 +45,9 @@
 		nulls last
 		
 	Oracle数据库中null值最大
-	
-	
+5. 	组函数会自动滤空；可以嵌套**滤空函数**来屏蔽他的滤空功能
 # 滤空函数：
-
 - **nvl(a,b)**:如果a为空返回b，如果不为空返回a自己
-	
 # 别名(alias)：
 示例：
 
@@ -136,3 +133,100 @@
 	
 # a命令(append)：
 &#160;&#160;&#160;&#160;&#160;**a命令后面的空格至少两个**
+# group by:
+Oracle中的`group by`语句有如下语法要求：
+	
+	select a,b,c,组函数(x)
+	from table
+	group by a,b,c,d,e;
+即：
+
+1. 在`select`语句中所有没有包含在组函数中的列，都要在`group by`的子句中，如句中的`a,b,c`
+1. 但是，包含在`group by`子句中的列不必包含在`select`列表中，如句中的`d,e`
+3. 多个列的分组，先按照`group by`后的第一个列分组，第一列相同的，再按照第二列分组，如果所有列都相同，就分到同一组中，计算该组的分组函数值
+4. 过滤分组`having`：
+		
+		SQL> --求平均工资大于2000的部门
+		SQL> select deptno,avg(sal)
+  			2  from emp
+ 			3  group by deptno
+  			4  having avg(sal)>2000;
+
+ 		DEPTNO   AVG(SAL)
+		------- ----------
+     		20       2175
+     		10 2916.66667
+	`where`和`having`的区别：`where`子句不能使用多行函数（组函数）
+
+	换句话说：在没有组函数的情况下，`where`和`having`可以通用
+
+		SQL> --查询10号部门的平均工资
+		SQL> select deptno,avg(sal)
+		  2  from emp
+		  3  group by deptno
+		  4  having deptno=10;
+		
+		 DEPTNO   AVG(SAL)
+		------- ----------
+     		10 2916.66667
+
+		SQL> select deptno,avg(sal)
+		  2  from emp
+		  3  where deptno=10
+		  4  group by deptno;
+		
+		 DEPTNO   AVG(SAL)
+		------- ----------
+     		10 2916.66667
+5. **`group by`的增强：结合`rollup()`进行工资报表**
+
+		SQL> /*
+		SQL> group by的增强：
+		SQL> select deptno,job,sum(sal) from emp group by deptno,job;
+		SQL> +
+		SQL> select deptno,sum(sal) from emp group by deptno;
+		SQL> +
+		SQL> select sum(sal) from emp;
+		SQL> =
+		SQL> select deptno,job,sum(sal) from emp group by rollup(deptno,job);
+		SQL>
+		SQL> 抽象
+		SQL>
+		SQL> group by rollup(a,b)
+		SQL> =
+		SQL> group by a,b
+		SQL> +
+		SQL> group by a
+		SQL> +
+		SQL> group by null
+		SQL> */
+报表执行结果如下：
+		
+		SQL> break on deptno skip 2;
+		SQL> select deptno,job,sum(sal) from emp group by rollup(deptno,job);
+		
+		 DEPTNO JOB          SUM(SAL)
+		------- ---------- ----------
+		     10 CLERK            1300
+		        MANAGER          2450
+		        PRESIDENT        5000
+		                         8750
+		
+		
+		     20 CLERK            1900
+		        ANALYST          6000
+		        MANAGER          2975
+		                        10875
+		
+		
+		     30 CLERK             950
+		        MANAGER          2850
+		        SALESMAN         5600
+		                         9400
+		
+		
+		 DEPTNO JOB          SUM(SAL)
+		------- ---------- ----------
+		
+		                        29025
+`break on deptno skip 2`用于将数据格式显示成报表形式；`break on deptno`的意思是相同的列`deptno`只显示一次；`skip 2`的意思是不同的部门号之间跳过2行；最后要通过`break on null`这条指令，来取消格式
